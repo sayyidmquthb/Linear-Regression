@@ -1,0 +1,91 @@
+---
+title: "Linear Regression on Crime Rate Prediction"
+author: "Sayyid Muhammad Quthb"
+date: "4/24/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Intro
+
+In this chapter, we will learn on how to use linear regression model using "crime" dataset.We want to know the relationship among variables, especially between the "crime rate" with other variables. We also want to find patterns which will help us in predicting the crime rate on specific area based on the historical data.
+
+# Data Preparation
+
+Load the required packages.
+
+```{r}
+library(tidyverse)
+library(caret)
+library(plotly)
+library(data.table)
+library(GGally)
+library(tidymodels)
+library(car)
+library(scales)
+library(lmtest)
+
+options(scipen = 100, max.print = 1e+06)
+```
+
+Load the dataset.
+
+```{r}
+crime <- read_csv("crime.csv")
+head(crime)
+```
+
+```{r}
+glimpse(crime)
+```
+The data has 47 rows and 16 columns. All of the variables we have identify informations that may affect the crime rate of a certain area. For example, gdp and inequality in a certain area are 2 of the most well known factors of crime being presented.
+
+Before we go to next step, we need to make sure that our data is already clean. We need to identify if there any missing value in our dataset.
+
+```{r}
+anyNA(crime)
+```
+
+Once we are sure that our data is already clean, we can continue to the further process.
+
+# Exploratory Data Analysis
+
+Exploratory data analysis (EDA) is a process where we explore the data variables to find any pattern that can indicate any kind of correlation between variables.
+
+Find the Pearson correlation between variables.
+
+```{r}
+ggcorr(crime, label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
+```
+
+From the visualization above, only **nonwhites_per1000** which has no correlation with **crime_rate**. Furthermore, we know that **gdp** and **inequality** don't play significant relation in the present of **crime_rate** in a certain area because of their low correlation score. The most related variable with **crime_rate** are **police_exp59** and **police_exp60** which make sense because of high number of police experience in an area may indicates high number of incident happened there. 
+
+But, high correlation doesn't always have high influence, vice versa. We might get a variable with low correlation but gives significant impact to the prediction. Hence, we will try to make a model for our dataset using all the variables to find new insights about our data.
+
+# Data Modelling
+
+```{r}
+model_all <- lm(formula = crime_rate ~ ., data = crime)
+summary(model_all)
+```
+By using confidence level of 95%, We got Adjusted R-squared score of 0.7078 by using all variables to train our model. But, ther are some variables showing low significancy (t value > 0.05). In this case, we will eliminate some variables using step wise method.
+
+
+```{r}
+step(objects = model_all, direction = "backward")
+```
+
+
+
+
+
+
+
+
+
+
+
+
