@@ -1,0 +1,187 @@
+---
+title: "Linear Regression on Crime Rate Prediction"
+author: "Sayyid Muhammad Quthb"
+date: "4/24/2021"
+output:
+  html_document:
+    toc: true
+    toc_depth: 1
+    toc_float: 
+        collapsed: false
+    df_print: paged 
+    number_sections: true
+    theme: cosmo
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Intro
+
+In this chapter, we will learn on how to use linear regression model using "crime" dataset.We want to know the relationship among variables, especially between the "crime rate" with other variables. We also want to find patterns which will help us in predicting the crime rate on specific area based on the historical data.
+
+# Data Preparation
+
+Load the required packages.
+
+```{r}
+library(dplyr)
+library(GGally)
+library(lmtest)
+library(car)
+library(MLmetrics)
+library(ggplot2)
+
+options(scipen = 100, max.print = 1e+06)
+```
+
+Load the dataset.
+
+```{r}
+crime <- read.csv("crime.csv")
+head(crime)
+```
+
+```{r}
+glimpse(crime)
+```
+The data has 47 rows and 16 columns. All of the variables we have identify informations that may affect the crime rate of a certain area. For example, gdp and inequality in a certain area are 2 of the most well known factors of crime being presented.
+
+Before we go to next step, we need to make sure that our data is already clean. We need to identify if there any missing value in our dataset.
+
+```{r}
+anyNA(crime)
+```
+
+Once we are sure that our data is already clean, we can continue to the further process.
+
+# Exploratory Data Analysis
+
+Exploratory data analysis (EDA) is a process where we explore the data variables to find any pattern that can indicate any kind of correlation between variables.
+
+Find the Pearson correlation between variables.
+
+```{r}
+ggcorr(crime, label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
+```
+
+From the visualization above, only **nonwhites_per1000** which has no correlation with **crime_rate**. Furthermore, we know that **gdp** and **inequality** don't play significant relation in the present of **crime_rate** in a certain area because of their low correlation score. The most related variable with **crime_rate** are **police_exp59** and **police_exp60** which make sense because of high number of police experience in an area may indicates high number of incident happened there. 
+
+But, high correlation doesn't always have high influence, vice versa. We might get a variable with low correlation but gives significant impact to the prediction. Hence, we will try to make a model for our dataset using all the variables to find new insights about our data.
+
+# Data Modelling
+
+```{r}
+model_all <- lm(formula = crime_rate ~ ., data = crime)
+summary(model_all)
+```
+By using confidence level of 95%, We got Adjusted R-squared score of 0.7078 by using all variables to train our model. But, there are some variables showing low significancy (t value > 0.05). In this case, we will eliminate some variables using step wise method.
+
+
+```{r}
+model_step <- step(object = model_all, direction = "backward")
+summary(model_step)
+```
+
+By using step wise method, we eliminated less important variables and the Adjusted R-squared score increased to 0.7444.
+
+# Evaluation
+
+## Assumptions
+
+Linear regression is a parametric model, meaning that in order to create a model equation, the model follows some classical assumption. Linear regression that doesn’t follow the assumption may be misleading, or just simply has biased estimator. For this section, we only check the second model (the model with removed variables).
+
+1. Linearity
+
+The linear regression model assumes that there is a straight-line relationship between the predictors and the response. If the true relationship is far from linear, then virtually all of the conclusions that we draw from the fit are suspect. In addition, the prediction accuracy of the model can be significantly reduced.
+
+Residual plots are a useful graphical tool for identifying non-linearity. If there is a pattern in the residual plot, it means that the model can be further improved upon or that it does not meet the linearity assumption. The plot shows the relationship between the residuals/errors with the predicted/fitted values.
+
+```{r}
+resact <- data.frame(residual = model_step$residuals, fitted = model_step$fitted.values)
+
+resact %>% ggplot(aes(fitted, residual)) + geom_point() + geom_smooth() + geom_hline(aes(yintercept = 0)) + theme(panel.grid = element_blank(), panel.background = element_blank())
+```
+
+2. Normality Test
+
+The second assumption in linear regression is that the residuals follow normal distribution. We can easily check this by using the Saphiro-Wilk normality test.
+
+```{r}
+shapiro.test(model_step$residuals)
+```
+
+From the test above, we know that:
+**Error is distributed normally (P-value higher than 0.05) **
+
+3. Heterocedasticity
+
+Heterocedasticity means that the variances of the error terms are non-constant. One can identify non-constant variances in the errors from the presence of a funnel shape in the residual plot, same with the linearity one.
+
+```{r}
+bptest(model_step)
+```
+
+Based on Breusch-Pagan test you have performed, **Heteroscedasticity is not present**.
+
+4. Variance Inflation Factor
+
+Using VIF value, we can determine whether or not there are multicollinearity between predictor variables. A high VIF value indicates a high correlation between the variables.
+
+```{r}
+library(car)
+vif(model_step)
+```
+
+**Multicollinearity is not present in our model because the VIF values for all variables are below 10.**
+
+# Model Interpretation
+
+## Crime Rate Prediction
+
+By using crime_test dataset, we will use our model to predict **crime rate** and compare the predicted values with the real **crime rate** values in the dataset.
+
+1. First Model (using all variables):
+
+```{r}
+crime_test <- read.csv("crime_test.csv", stringsAsFactors = T)
+crime_test <- crime_test %>% 
+  mutate(prediction = predict(object = model_all, newdata = crime_test))
+crime_test
+```
+
+
+2. Second Model (step wise method):   
+
+```{r}
+crime_test2 <- crime_test %>% 
+  mutate(prediction = predict(object = model_step, newdata = crime_test))
+crime_test2
+```
+
+## Performance
+
+The performance of our model (how well our model predict the target variable) can be calculated using root mean squared error. RMSE is better than MAE or mean absolute error, because RMSE squared the difference between the actual values and the predicted values, meaning that prediction with higher error will be penalized greatly. This metric is often used to compare two or more alternative models, even though it is harder to interpret than MAE. We can use the RMSE () functions from caret package.
+
+1. First Model (using all variables):   
+
+```{r}
+RMSE(y_true = crime_test$crime_rate, y_pred = crime_test$prediction)
+```
+
+2. Second Model (step wise method):   
+
+```{r}
+RMSE(y_true = crime_test2$crime_rate, y_pred = crime_test2$prediction)
+```
+
+New insight: **Adjusted R-squared doesn't always produce lower RMSE. By comparing the first model which has lower Adjusted R-squared score with the second model, the first model produced lower RMSE**
+
+# Recommendation
+
+In this study case, further improvement on what variables should be eliminated needs to be done. Although both of the model seems to give good result, the gap between real values and predicted values is still high. This difference may give tremendous effect to the decision which government makes.
+
+
